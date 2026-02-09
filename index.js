@@ -1,5 +1,5 @@
 const express = require('express');
-const mongoose = require('mongoose'); // একবারই যথেষ্ট
+const mongoose = require('mongoose');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
@@ -23,16 +23,20 @@ mongoose
 // --- ২. মডেল (Schemas) ---
 const User = mongoose.model(
   'User',
-  new mongoose.Schema({
-    name: String,
-    email: { type: String, unique: true, required: true },
-    password: { type: String, required: true },
-    bloodGroup: String,
-    district: String,
-    upazila: String,
-    role: { type: String, default: 'donor' },
-    status: { type: String, default: 'active' },
-  })
+  new mongoose.Schema(
+    {
+      name: String,
+      email: { type: String, unique: true, required: true },
+      password: { type: String, required: true },
+      bloodGroup: String,
+      district: String,
+      upazila: String,
+      avatar: String,
+      role: { type: String, default: 'donor' },
+      status: { type: String, default: 'active' },
+    },
+    { timestamps: true }
+  )
 );
 
 const DonationRequest = mongoose.model(
@@ -141,6 +145,33 @@ app.patch('/request-status/:id', verifyToken, async (req, res) => {
   const { status } = req.body;
   await DonationRequest.findByIdAndUpdate(req.params.id, { status });
   res.send({ message: 'Status Updated' });
+});
+
+// ১. নির্দিষ্ট ইউজারের ডেটা দেখা (Get single user by email)
+app.get('/user/:email', async (req, res) => {
+  try {
+    const email = req.params.email;
+    const user = await User.findOne({ email: email });
+    if (!user) return res.status(404).send({ message: 'User not found' });
+    res.send(user);
+  } catch (error) {
+    res.status(500).send({ message: error.message });
+  }
+});
+
+// ২. প্রোফাইল আপডেট করা (Patch user data)
+app.patch('/user-update/:email', async (req, res) => {
+  try {
+    const email = req.params.email;
+    const filter = { email: email };
+    const updatedDoc = {
+      $set: req.body, // ফ্রন্টেন্ড থেকে যা আসবে সব আপডেট হবে
+    };
+    const result = await User.updateOne(filter, updatedDoc);
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: error.message });
+  }
 });
 
 // --- ৫. সার্ভার স্টার্ট ---
