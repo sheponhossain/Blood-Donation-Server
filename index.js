@@ -7,12 +7,16 @@ require('dotenv').config();
 
 const app = express();
 
-// --- মিডলওয়্যার ---
-app.use(cors());
+// --- মিডলওয়্যার ---
+app.use(
+  cors({
+    origin: ['http://localhost:5173'],
+    credentials: true,
+  })
+);
 app.use(express.json());
 
-// --- ১. ডেটাবেস কানেকশন (ডায়নামিক ও সঠিক পদ্ধতি) ---
-// আপনার দেওয়া URI টি এখানে ব্যবহার করা হয়েছে
+// --- ১. ডেটাবেস কানেকশন (Mongoose) ---
 const uri = `mongodb+srv://sheponsu_db_user:${process.env.DB_PASS}@cluster0.gqdrlzl.mongodb.net/bloodDonationDB?retryWrites=true&w=majority&appName=Cluster0`;
 
 mongoose
@@ -29,8 +33,8 @@ const User = mongoose.model(
       email: { type: String, unique: true, required: true },
       password: { type: String, required: true },
       bloodGroup: String,
+      division: String,
       district: String,
-      upazila: String,
       avatar: String,
       role: { type: String, default: 'donor' },
       status: { type: String, default: 'active' },
@@ -39,19 +43,25 @@ const User = mongoose.model(
   )
 );
 
+// Frontend theke asha shob field ekhane add kora hoyeche
 const DonationRequest = mongoose.model(
   'DonationRequest',
-  new mongoose.Schema({
-    requesterName: String,
-    recipientName: String,
-    hospitalName: String,
-    address: String,
-    bloodGroup: String,
-    date: String,
-    time: String,
-    message: String,
-    status: { type: String, default: 'pending' },
-  })
+  new mongoose.Schema(
+    {
+      requesterName: String,
+      requesterEmail: String,
+      recipientName: String,
+      hospitalName: String,
+      fullAddress: String, // input name onusare
+      district: String,
+      bloodGroup: String,
+      donationDate: String,
+      donationTime: String,
+      message: String,
+      status: { type: String, default: 'pending' },
+    },
+    { timestamps: true }
+  )
 );
 
 // --- ৩. মিডলওয়্যার (JWT Auth) ---
@@ -68,22 +78,18 @@ const verifyToken = (req, res, next) => {
 
 // --- ৪. রুটস (API Endpoints) ---
 
-// টেস্ট রুট
 app.get('/', (req, res) => {
   res.send('Blood Donation Server is Running!');
 });
 
-// রেজিস্ট্রেশন রুট
+// Registration & Login (Apnar code thik ache...)
 app.post('/register', async (req, res) => {
   try {
-    const { name, email, password, bloodGroup, district, upazila } = req.body;
-
-    // ইমেইল চেক
-    const query = { email: email };
-    const existingUser = await User.findOne(query);
-    if (existingUser) {
+    const { name, email, password, bloodGroup, district, division, avatar } =
+      req.body;
+    const existingUser = await User.findOne({ email });
+    if (existingUser)
       return res.status(400).send({ message: 'User already exists' });
-    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = new User({
@@ -92,7 +98,8 @@ app.post('/register', async (req, res) => {
       password: hashedPassword,
       bloodGroup,
       district,
-      upazila,
+      division,
+      avatar,
     });
     await newUser.save();
     res.status(201).send({ message: 'Registration Successful' });
@@ -103,11 +110,9 @@ app.post('/register', async (req, res) => {
   }
 });
 
-// লগইন রুট
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
   const user = await User.findOne({ email });
-
   if (user && (await bcrypt.compare(password, user.password))) {
     const token = jwt.sign(
       { email: user.email, role: user.role },
@@ -123,52 +128,41 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// ব্লাড রিকোয়েস্ট তৈরি করা
-app.post('/create-request', verifyToken, async (req, res) => {
+// --- ✅ FIX: Donation Request API (Using Mongoose Model) ---
+app.post('/donation-requests', async (req, res) => {
   try {
-    const request = new DonationRequest(req.body);
-    await request.save();
-    res.send({ message: 'Request Created Successfully' });
+    const requestData = req.body;
+    const newRequest = new DonationRequest(requestData);
+    const result = await newRequest.save();
+    // Frontend-er subidharthe insertedId manually add kora holo jate Swal success ashe
+    res.send({
+      insertedId: result._id,
+      message: 'Request Created Successfully',
+    });
   } catch (error) {
-    res.status(500).send({ message: 'Failed to create request' });
+    console.error('Error:', error);
+    res.status(500).send({ message: 'Failed to save donation request' });
   }
 });
 
-// সকল ব্লাড রিকোয়েস্ট দেখা
-app.get('/requests', async (req, res) => {
-  const requests = await DonationRequest.find().sort({ date: -1 });
-  res.send(requests);
-});
-
-// স্ট্যাটাস আপডেট
-app.patch('/request-status/:id', verifyToken, async (req, res) => {
-  const { status } = req.body;
-  await DonationRequest.findByIdAndUpdate(req.params.id, { status });
-  res.send({ message: 'Status Updated' });
-});
-
-// ১. নির্দিষ্ট ইউজারের ডেটা দেখা (Get single user by email)
-app.get('/user/:email', async (req, res) => {
+// User-er email onusare tar request gulo niye asha
+app.get('/my-donation-requests/:email', async (req, res) => {
   try {
     const email = req.params.email;
-    const user = await User.findOne({ email: email });
-    if (!user) return res.status(404).send({ message: 'User not found' });
-    res.send(user);
+    const result = await DonationRequest.find({ requesterEmail: email }).sort({
+      createdAt: -1,
+    });
+    res.send(result);
   } catch (error) {
     res.status(500).send({ message: error.message });
   }
 });
 
-// ২. প্রোফাইল আপডেট করা (Patch user data)
-app.patch('/user-update/:email', async (req, res) => {
+// Profile Update & Others...
+app.get('/user/:email', async (req, res) => {
   try {
-    const email = req.params.email;
-    const filter = { email: email };
-    const updatedDoc = {
-      $set: req.body, // ফ্রন্টেন্ড থেকে যা আসবে সব আপডেট হবে
-    };
-    const result = await User.updateOne(filter, updatedDoc);
-    res.send(result);
+    const user = await User.findOne({ email: req.params.email });
+    res.send(user);
   } catch (error) {
     res.status(500).send({ message: error.message });
   }
