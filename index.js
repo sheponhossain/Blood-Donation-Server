@@ -208,6 +208,25 @@ app.patch('/donation-request/:id', async (req, res) => {
   }
 });
 
+// অ্যাডমিন স্ট্যাটাস ডাটা পাওয়ার রুট
+app.get('/admin-stats', async (req, res) => {
+  try {
+    const totalDonors = await User.countDocuments({ role: 'donor' });
+    const totalRequests = await DonationRequest.countDocuments();
+
+    // ফান্ডিং আপাতত স্ট্যাটিক বা আপনার যদি অন্য কালেকশন থাকে সেখান থেকে আনতে পারেন
+    const totalFunding = 52490;
+
+    res.send({
+      totalDonors,
+      totalRequests,
+      totalFunding,
+    });
+  } catch (error) {
+    res.status(500).send({ message: 'Error fetching stats' });
+  }
+});
+
 // --- ৫. সার্ভার স্টার্ট ---
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server flying on port ${PORT}`));
