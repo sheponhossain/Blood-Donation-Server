@@ -53,6 +53,8 @@ const DonationRequest = mongoose.model(
       recipientName: String,
       hospitalName: String,
       fullAddress: String, // input name onusare
+      division: String,
+      recipientDistrict: String,
       district: String,
       bloodGroup: String,
       donationDate: String,
@@ -165,6 +167,44 @@ app.get('/user/:email', async (req, res) => {
     res.send(user);
   } catch (error) {
     res.status(500).send({ message: error.message });
+  }
+});
+
+// নিশ্চিত করুন এই রুটটি আপনার server.js এ আছে
+app.delete('/donation-request/:id', verifyToken, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const query = { _id: new mongoose.Types.ObjectId(id) };
+    const result = await DonationRequest.deleteOne(query);
+    res.send(result); // এটি { deletedCount: 1 } রিটার্ন করবে
+  } catch (error) {
+    res.status(500).send({ message: 'Delete failed' });
+  }
+});
+
+// ১. নির্দিষ্ট রিকোয়েস্টের ডেটা আনা (Get Single Request)
+app.get('/donation-request/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const result = await DonationRequest.findById(id); // Mongoose model use korle
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Request not found' });
+  }
+});
+
+// ২. ডেটা আপডেট করা (Update Request)
+app.patch('/donation-request/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const filter = { _id: new mongoose.Types.ObjectId(id) };
+    const updatedDoc = {
+      $set: req.body, // Frontend theke asha formData set hobe
+    };
+    const result = await DonationRequest.updateOne(filter, updatedDoc);
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Update failed' });
   }
 });
 
