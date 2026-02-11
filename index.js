@@ -147,6 +147,17 @@ app.post('/donation-requests', async (req, res) => {
   }
 });
 
+// সব রিকোয়েস্ট অ্যাডমিন/সিস্টেমের জন্য পাওয়ার রুট
+app.get('/donation-requests', async (req, res) => {
+  try {
+    // ডাটাবেস থেকে সব রিকোয়েস্ট লেটেস্ট হিসেবে নিয়ে আসা
+    const result = await DonationRequest.find().sort({ createdAt: -1 });
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Error fetching all requests' });
+  }
+});
+
 // User-er email onusare tar request gulo niye asha
 app.get('/my-donation-requests/:email', async (req, res) => {
   try {
@@ -216,6 +227,79 @@ app.get('/admin-stats', async (req, res) => {
 
     // ফান্ডিং আপাতত স্ট্যাটিক বা আপনার যদি অন্য কালেকশন থাকে সেখান থেকে আনতে পারেন
     const totalFunding = 52490;
+
+    res.send({
+      totalDonors,
+      totalRequests,
+      totalFunding,
+    });
+  } catch (error) {
+    res.status(500).send({ message: 'Error fetching stats' });
+  }
+});
+
+// সব ইউজারদের নিয়ে আসা (অ্যাডমিনের জন্য)
+app.get('/users', verifyToken, async (req, res) => {
+  try {
+    const result = await User.find().sort({ createdAt: -1 });
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Failed to fetch users' });
+  }
+});
+
+// ইউজারের স্ট্যাটাস বা রোল আপডেট করা
+app.patch('/users/update/:id', verifyToken, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const updateData = req.body; // এতে থাকবে { status: 'blocked' } অথবা { role: 'admin' }
+    const result = await User.updateOne({ _id: id }, { $set: updateData });
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Update failed' });
+  }
+});
+
+// --- নতুন মিডলওয়্যার: Admin চেক করার জন্য ---
+const verifyAdmin = async (req, res, next) => {
+  const email = req.user.email;
+  const user = await User.findOne({ email });
+  if (user?.role !== 'admin') {
+    return res.status(403).send({ message: 'Forbidden access! Admins only.' });
+  }
+  next();
+};
+
+// --- আপডেট করা রুটসমূহ (verifyAdmin যোগ করা হয়েছে) ---
+
+// সব ইউজারদের নিয়ে আসা (শুধুমাত্র অ্যাডমিনের জন্য)
+app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const result = await User.find().sort({ createdAt: -1 });
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Failed to fetch users' });
+  }
+});
+
+// ইউজারের স্ট্যাটাস বা রোল আপডেট করা (শুধুমাত্র অ্যাডমিনের জন্য)
+app.patch('/users/update/:id', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const updateData = req.body;
+    const result = await User.updateOne({ _id: id }, { $set: updateData });
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Update failed' });
+  }
+});
+
+// অ্যাডমিন স্ট্যাটাস ডাটা (verifyAdmin যোগ করা নিরাপদ)
+app.get('/admin-stats', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const totalDonors = await User.countDocuments({ role: 'donor' });
+    const totalRequests = await DonationRequest.countDocuments();
+    const totalFunding = 52490; // আপাতত স্ট্যাটিক
 
     res.send({
       totalDonors,
