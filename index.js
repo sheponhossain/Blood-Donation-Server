@@ -1,9 +1,10 @@
 const express = require('express');
+require('dotenv').config();
 const mongoose = require('mongoose');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-require('dotenv').config();
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 
@@ -61,6 +62,22 @@ const DonationRequest = mongoose.model(
       donationTime: String,
       message: String,
       status: { type: String, default: 'pending' },
+    },
+    { timestamps: true }
+  )
+);
+
+// payment
+const Payment = mongoose.model(
+  'Payment',
+  new mongoose.Schema(
+    {
+      userName: String,
+      amount: Number,
+      date: { type: Date, default: Date.now },
+      method: String,
+      transactionId: String,
+      status: String,
     },
     { timestamps: true }
   )
@@ -308,6 +325,90 @@ app.get('/admin-stats', verifyToken, verifyAdmin, async (req, res) => {
     });
   } catch (error) {
     res.status(500).send({ message: 'Error fetching stats' });
+  }
+});
+
+// পেমেন্ট ইনটেন্ট ক্রিয়েট
+// পেমেন্ট ইনটেন্ট ক্রিয়েট
+app.post('/create-payment-intent', async (req, res) => {
+  try {
+    const { price } = req.body;
+    if (!price || price <= 0)
+      return res.status(400).send({ message: 'Invalid price' });
+
+    const amount = parseInt(price * 100); // সেন্টে কনভার্ট
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amount,
+      currency: 'usd',
+      payment_method_types: ['card'],
+    });
+
+    res.send({ clientSecret: paymentIntent.client_secret });
+  } catch (error) {
+    console.error('Stripe Error:', error);
+    res.status(500).send({ message: error.message });
+  }
+});
+
+// পেমেন্ট ডাটা সেভ
+app.post('/payments', async (req, res) => {
+  try {
+    const paymentData = req.body;
+    const newPayment = new Payment(paymentData);
+    const result = await newPayment.save();
+    res.send({ insertedId: result._id, message: 'Payment Saved' });
+  } catch (error) {
+    res.status(500).send({ message: 'Failed to save payment' });
+  }
+});
+
+// সব পেমেন্ট হিস্ট্রি দেখা
+app.get('/payments', async (req, res) => {
+  try {
+    const result = await Payment.find().sort({ date: -1 });
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Error fetching payments' });
+  }
+});
+
+// --- Search Donors API ---
+// আপনার ব্যাকেন্ডে (server index.js) এটি যোগ করুন
+app.get('/search-requests', async (req, res) => {
+  try {
+    const { bloodGroup, division, district } = req.query;
+
+    // ব্যাকেন্ডে প্রিন্ট করে দেখুন কি আসছে
+    console.log('Search parameters received:', req.query);
+
+    let query = {};
+
+    // যদি আপনি চান শুধু পেন্ডিং রিকোয়েস্ট দেখাবেন
+    query.status = { $regex: /^pending$/i };
+
+    if (bloodGroup) {
+      query.bloodGroup = bloodGroup;
+    }
+
+    if (division) {
+      // এটি 'dhaka' বা 'Dhaka' যাই হোক না কেন খুঁজে বের করবে
+      query.division = { $regex: new RegExp(division, 'i') };
+    }
+
+    if (district) {
+      query.district = { $regex: new RegExp(district, 'i') };
+    }
+
+    console.log('Final Mongo Query:', query);
+
+    const result = await DonationRequest.find(query).sort({ createdAt: -1 });
+    console.log('Results found:', result.length);
+
+    res.send(result);
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).send({ message: 'Internal Server Error' });
   }
 });
 
