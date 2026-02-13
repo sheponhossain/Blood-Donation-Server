@@ -198,15 +198,21 @@ app.get('/user/:email', async (req, res) => {
   }
 });
 
-// নিশ্চিত করুন এই রুটটি আপনার server.js এ আছে
-app.delete('/donation-request/:id', verifyToken, async (req, res) => {
+// server/index.js
+app.delete('/donation-request/:id', async (req, res) => {
   try {
     const id = req.params.id;
-    const query = { _id: new mongoose.Types.ObjectId(id) };
-    const result = await DonationRequest.deleteOne(query);
-    res.send(result); // এটি { deletedCount: 1 } রিটার্ন করবে
+
+    const result = await DonationRequest.findByIdAndDelete(id);
+
+    if (result) {
+      res.send({ deletedCount: 1, message: 'Deleted successfully' });
+    } else {
+      res.status(404).send({ message: 'Request not found' });
+    }
   } catch (error) {
-    res.status(500).send({ message: 'Delete failed' });
+    console.error('Delete error:', error);
+    res.status(500).send({ message: 'Server error' });
   }
 });
 
@@ -287,6 +293,22 @@ const verifyAdmin = async (req, res, next) => {
   next();
 };
 
+app.patch('/user-update/:email', async (req, res) => {
+  try {
+    const email = req.params.email;
+    const updateData = req.body;
+    const result = await User.updateOne({ email: email }, { $set: updateData });
+
+    if (result.matchedCount === 0) {
+      return res.status(404).send({ message: 'User not found' });
+    }
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Update failed', error: error.message });
+  }
+});
+
 // --- আপডেট করা রুটসমূহ (verifyAdmin যোগ করা হয়েছে) ---
 
 // সব ইউজারদের নিয়ে আসা (শুধুমাত্র অ্যাডমিনের জন্য)
@@ -328,8 +350,6 @@ app.get('/admin-stats', verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
-// পেমেন্ট ইনটেন্ট ক্রিয়েট
-// পেমেন্ট ইনটেন্ট ক্রিয়েট
 app.post('/create-payment-intent', async (req, res) => {
   try {
     const { price } = req.body;
