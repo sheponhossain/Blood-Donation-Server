@@ -494,7 +494,6 @@ app.post('/blogs', async (req, res) => {
   }
 });
 
-// ২. সব ব্লগ ডাটা রিড করা
 app.get('/blogs', async (req, res) => {
   try {
     const result = await Blog.find().sort({ createdAt: -1 });
