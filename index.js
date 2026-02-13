@@ -62,6 +62,8 @@ const DonationRequest = mongoose.model(
       donationTime: String,
       message: String,
       status: { type: String, default: 'pending' },
+      donorName: { type: String, default: null },
+      donorEmail: { type: String, default: null },
     },
     { timestamps: true }
   )
@@ -78,6 +80,22 @@ const Payment = mongoose.model(
       method: String,
       transactionId: String,
       status: String,
+    },
+    { timestamps: true }
+  )
+);
+
+// ব্লগ মডেল (Schema)
+const Blog = mongoose.model(
+  'Blog',
+  new mongoose.Schema(
+    {
+      title: String,
+      image: String,
+      category: String,
+      content: String,
+      date: String,
+      status: { type: String, default: 'draft' },
     },
     { timestamps: true }
   )
@@ -198,6 +216,7 @@ app.get('/user/:email', async (req, res) => {
   }
 });
 
+// নিশ্চিত করুন এই রুটটি আপনার server.js এ আছে
 // server/index.js
 app.delete('/donation-request/:id', async (req, res) => {
   try {
@@ -429,6 +448,143 @@ app.get('/search-requests', async (req, res) => {
   } catch (error) {
     console.error('Search error:', error);
     res.status(500).send({ message: 'Internal Server Error' });
+  }
+});
+
+// পাবলিক পেজের জন্য শুধুমাত্র পেন্ডিং রিকোয়েস্টগুলো আনা
+app.get('/donation-requests-pending', async (req, res) => {
+  try {
+    const result = await DonationRequest.find({ status: 'pending' }).sort({
+      createdAt: -1,
+    });
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Error fetching requests' });
+  }
+});
+
+// backend/index.js (উদাহরণ)
+
+app.post('/blogs', async (req, res) => {
+  try {
+    const newBlog = new Blog(req.body); // আপনি উপরে 'Blog' মডেল তৈরি করেছেন, সেটি ব্যবহার হচ্ছে
+    const result = await newBlog.save();
+    res.send({ insertedId: result._id, message: 'Published Successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ message: 'Failed to publish blog' });
+  }
+});
+
+// ৩. ব্লগ ডাটা রিড করার API (UI তে দেখানোর জন্য)
+// --- ব্লগ সম্পর্কিত রুটস ---
+
+// ১. নতুন ব্লগ পোস্ট করা (অ্যাডমিনের জন্য)
+app.post('/blogs', async (req, res) => {
+  try {
+    const blogData = req.body;
+    // যদি ফ্রন্টএন্ড থেকে স্ট্যাটাস না আসে, তবে নিশ্চিতভাবে 'draft' সেট হবে
+    if (!blogData.status) blogData.status = 'draft';
+
+    const newBlog = new Blog(blogData);
+    const result = await newBlog.save();
+    res.send({ insertedId: result._id, message: 'Draft Saved Successfully' });
+  } catch (error) {
+    res.status(500).send({ message: 'Failed to create blog' });
+  }
+});
+
+// ২. সব ব্লগ ডাটা রিড করা
+app.get('/blogs', async (req, res) => {
+  try {
+    const result = await Blog.find().sort({ createdAt: -1 });
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Error fetching blogs' });
+  }
+});
+
+// ৩. ব্লগ ডিলিট করা
+app.delete('/blogs/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const result = await Blog.findByIdAndDelete(id);
+    if (result) {
+      res.send({ deletedCount: 1 });
+    } else {
+      res.status(404).send({ message: 'Blog not found' });
+    }
+  } catch (error) {
+    res.status(500).send({ message: 'Delete failed' });
+  }
+});
+
+app.patch('/blogs/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const updateData = req.body;
+
+    const result = await Blog.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    if (result) {
+      // modifiedCount ১ পাঠানো হচ্ছে যাতে ফ্রন্টএন্ডের Swal success পায়
+      res.send({
+        modifiedCount: 1,
+        matchedCount: 1,
+        message: 'Updated successfully',
+      });
+    } else {
+      res.status(404).send({ message: 'Blog not found' });
+    }
+  } catch (error) {
+    res.status(500).send({ message: 'Update failed' });
+  }
+});
+
+// পাবলিক ইউজারদের জন্য শুধু পাবলিশড ব্লগ
+app.get('/blogs-published', async (req, res) => {
+  try {
+    const result = await Blog.find({ status: 'published' }).sort({
+      createdAt: -1,
+    });
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Error fetching blogs' });
+  }
+});
+
+// ডোনেশন রিকোয়েস্ট কনফার্ম করার রুট
+app.patch('/donation-request/status/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { status, donorName, donorEmail } = req.body;
+
+    // ডাটা ঠিকমতো আসছে কি না ব্যাকএন্ড টার্মিনালে চেক করুন
+    console.log('Received Data:', { status, donorName, donorEmail });
+
+    const result = await DonationRequest.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          status: status,
+          donorName: donorName,
+          donorEmail: donorEmail,
+        },
+      },
+      { new: true }
+    );
+
+    if (result) {
+      res.send({ modifiedCount: 1 });
+    } else {
+      res.status(404).send({ message: 'Not found' });
+    }
+  } catch (error) {
+    res.status(500).send({ message: 'Server error' });
   }
 });
 
