@@ -483,7 +483,6 @@ app.post('/blogs', async (req, res) => {
 app.post('/blogs', async (req, res) => {
   try {
     const blogData = req.body;
-    // যদি ফ্রন্টএন্ড থেকে স্ট্যাটাস না আসে, তবে নিশ্চিতভাবে 'draft' সেট হবে
     if (!blogData.status) blogData.status = 'draft';
 
     const newBlog = new Blog(blogData);
