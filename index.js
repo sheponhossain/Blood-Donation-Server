@@ -19,8 +19,6 @@ app.use(
   })
 );
 
-app.options('(.*)', cors());
-
 app.use(express.json());
 
 const uri = `mongodb+srv://sheponsu_db_user:${process.env.DB_PASS}@cluster0.gqdrlzl.mongodb.net/?appName=Cluster0`;
