@@ -20,7 +20,7 @@ app.use(
 );
 app.use(express.json());
 
-const uri = `mongodb+srv://sheponsu_db_user:${process.env.DB_PASS}@cluster0.gqdrlzl.mongodb.net/bloodDonationDB?retryWrites=true&w=majority&appName=Cluster0`;
+const uri = `mongodb+srv://sheponsu_db_user:${process.env.DB_PASS}@cluster0.gqdrlzl.mongodb.net/?appName=Cluster0`;
 
 mongoose
   .connect(uri)
@@ -68,6 +68,8 @@ const DonationRequest = mongoose.model(
     { timestamps: true }
   )
 );
+
+console.log('Checking DB Pass:', process.env.DB_PASS); // লগে পাসওয়ার্ডটি দেখাচ্ছে কিনা দেখুন
 
 // payment
 const Payment = mongoose.model(
