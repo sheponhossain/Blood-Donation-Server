@@ -71,7 +71,7 @@ const DonationRequest = mongoose.model(
   )
 );
 
-console.log('Checking DB Pass:', process.env.DB_PASS); // লগে পাসওয়ার্ডটি দেখাচ্ছে কিনা দেখুন
+console.log('Checking DB Pass:', process.env.DB_PASS);
 
 // payment
 const Payment = mongoose.model(
@@ -437,12 +437,18 @@ app.get('/search-requests', async (req, res) => {
 
 app.get('/donation-requests-pending', async (req, res) => {
   try {
-    const result = await DonationRequest.find({ status: 'pending' }).sort({
-      createdAt: -1,
-    });
+    const result = await DonationRequest.find({
+      status: { $regex: /^pending$/i },
+    }).sort({ createdAt: -1 });
+
+    console.log('Pending Requests Found:', result.length);
     res.send(result);
   } catch (error) {
-    res.status(500).send({ message: 'Error fetching requests' });
+    console.error('Database Fetch Error:', error.message);
+    res.status(500).send({
+      message: 'Error fetching requests',
+      error: error.message,
+    });
   }
 });
 
