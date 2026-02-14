@@ -10,7 +10,11 @@ const app = express();
 
 app.use(
   cors({
-    origin: ['https://blood-donation-11.web.app', 'http://localhost:5173'],
+    origin: [
+      'https://blood-donation-11.web.app',
+      'https://blood-donation-11.firebaseapp.com',
+      'http://localhost:5173',
+    ],
     credentials: true,
   })
 );
