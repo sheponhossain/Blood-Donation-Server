@@ -8,7 +8,6 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 
-// --- মিডলওয়্যার ---
 app.use(
   cors({
     origin: ['http://localhost:5173'],
@@ -17,7 +16,6 @@ app.use(
 );
 app.use(express.json());
 
-// --- ১. ডেটাবেস কানেকশন (Mongoose) ---
 const uri = `mongodb+srv://sheponsu_db_user:${process.env.DB_PASS}@cluster0.gqdrlzl.mongodb.net/bloodDonationDB?retryWrites=true&w=majority&appName=Cluster0`;
 
 mongoose
@@ -25,7 +23,6 @@ mongoose
   .then(() => console.log('❤️ Blood Donation DB Connected Successfully!'))
   .catch((err) => console.log('❌ DB Connection Error:', err));
 
-// --- ২. মডেল (Schemas) ---
 const User = mongoose.model(
   'User',
   new mongoose.Schema(
@@ -44,7 +41,6 @@ const User = mongoose.model(
   )
 );
 
-// Frontend theke asha shob field ekhane add kora hoyeche
 const DonationRequest = mongoose.model(
   'DonationRequest',
   new mongoose.Schema(
@@ -53,7 +49,7 @@ const DonationRequest = mongoose.model(
       requesterEmail: String,
       recipientName: String,
       hospitalName: String,
-      fullAddress: String, // input name onusare
+      fullAddress: String,
       division: String,
       recipientDistrict: String,
       district: String,
@@ -85,7 +81,6 @@ const Payment = mongoose.model(
   )
 );
 
-// ব্লগ মডেল (Schema)
 const Blog = mongoose.model(
   'Blog',
   new mongoose.Schema(
@@ -101,25 +96,44 @@ const Blog = mongoose.model(
   )
 );
 
-// --- ৩. মিডলওয়্যার (JWT Auth) ---
 const verifyToken = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).send({ message: 'Unauthorized access' });
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).send({ message: 'Unauthorized access' });
+  }
+  const token = authHeader.split(' ')[1];
 
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-    if (err) return res.status(403).send({ message: 'Forbidden access' });
+    if (err) {
+      return res.status(403).send({ message: 'Forbidden access' });
+    }
     req.user = decoded;
     next();
   });
 };
 
-// --- ৪. রুটস (API Endpoints) ---
+app.post('/jwt', async (req, res) => {
+  try {
+    const user = req.body;
+    if (!process.env.ACCESS_TOKEN_SECRET) {
+      console.log('❌ ERROR: ACCESS_TOKEN_SECRET is missing in .env file!');
+      return res.status(500).send({ message: 'Secret key missing' });
+    }
+
+    const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+      expiresIn: '1h',
+    });
+    res.send({ token });
+  } catch (error) {
+    console.error('JWT Error:', error);
+    res.status(500).send({ message: 'Internal Server Error' });
+  }
+});
 
 app.get('/', (req, res) => {
   res.send('Blood Donation Server is Running!');
 });
 
-// Registration & Login (Apnar code thik ache...)
 app.post('/register', async (req, res) => {
   try {
     const { name, email, password, bloodGroup, district, division, avatar } =
@@ -149,10 +163,10 @@ app.post('/register', async (req, res) => {
 
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email: email.toLowerCase() });
   if (user && (await bcrypt.compare(password, user.password))) {
     const token = jwt.sign(
-      { email: user.email, role: user.role },
+      { email: user.email.toLowerCase(), role: user.role },
       process.env.ACCESS_TOKEN_SECRET,
       { expiresIn: '1h' }
     );
@@ -165,13 +179,11 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// --- ✅ FIX: Donation Request API (Using Mongoose Model) ---
 app.post('/donation-requests', async (req, res) => {
   try {
     const requestData = req.body;
     const newRequest = new DonationRequest(requestData);
     const result = await newRequest.save();
-    // Frontend-er subidharthe insertedId manually add kora holo jate Swal success ashe
     res.send({
       insertedId: result._id,
       message: 'Request Created Successfully',
@@ -182,10 +194,8 @@ app.post('/donation-requests', async (req, res) => {
   }
 });
 
-// সব রিকোয়েস্ট অ্যাডমিন/সিস্টেমের জন্য পাওয়ার রুট
 app.get('/donation-requests', async (req, res) => {
   try {
-    // ডাটাবেস থেকে সব রিকোয়েস্ট লেটেস্ট হিসেবে নিয়ে আসা
     const result = await DonationRequest.find().sort({ createdAt: -1 });
     res.send(result);
   } catch (error) {
@@ -193,7 +203,6 @@ app.get('/donation-requests', async (req, res) => {
   }
 });
 
-// User-er email onusare tar request gulo niye asha
 app.get('/my-donation-requests/:email', async (req, res) => {
   try {
     const email = req.params.email;
@@ -206,7 +215,6 @@ app.get('/my-donation-requests/:email', async (req, res) => {
   }
 });
 
-// Profile Update & Others...
 app.get('/user/:email', async (req, res) => {
   try {
     const user = await User.findOne({ email: req.params.email });
@@ -216,8 +224,6 @@ app.get('/user/:email', async (req, res) => {
   }
 });
 
-// নিশ্চিত করুন এই রুটটি আপনার server.js এ আছে
-// server/index.js
 app.delete('/donation-request/:id', async (req, res) => {
   try {
     const id = req.params.id;
@@ -235,24 +241,22 @@ app.delete('/donation-request/:id', async (req, res) => {
   }
 });
 
-// ১. নির্দিষ্ট রিকোয়েস্টের ডেটা আনা (Get Single Request)
 app.get('/donation-request/:id', async (req, res) => {
   try {
     const id = req.params.id;
-    const result = await DonationRequest.findById(id); // Mongoose model use korle
+    const result = await DonationRequest.findById(id);
     res.send(result);
   } catch (error) {
     res.status(500).send({ message: 'Request not found' });
   }
 });
 
-// ২. ডেটা আপডেট করা (Update Request)
 app.patch('/donation-request/:id', async (req, res) => {
   try {
     const id = req.params.id;
     const filter = { _id: new mongoose.Types.ObjectId(id) };
     const updatedDoc = {
-      $set: req.body, // Frontend theke asha formData set hobe
+      $set: req.body,
     };
     const result = await DonationRequest.updateOne(filter, updatedDoc);
     res.send(result);
@@ -261,13 +265,11 @@ app.patch('/donation-request/:id', async (req, res) => {
   }
 });
 
-// অ্যাডমিন স্ট্যাটাস ডাটা পাওয়ার রুট
 app.get('/admin-stats', async (req, res) => {
   try {
     const totalDonors = await User.countDocuments({ role: 'donor' });
     const totalRequests = await DonationRequest.countDocuments();
 
-    // ফান্ডিং আপাতত স্ট্যাটিক বা আপনার যদি অন্য কালেকশন থাকে সেখান থেকে আনতে পারেন
     const totalFunding = 52490;
 
     res.send({
@@ -280,38 +282,27 @@ app.get('/admin-stats', async (req, res) => {
   }
 });
 
-// সব ইউজারদের নিয়ে আসা (অ্যাডমিনের জন্য)
-app.get('/users', verifyToken, async (req, res) => {
-  try {
-    const result = await User.find().sort({ createdAt: -1 });
-    res.send(result);
-  } catch (error) {
-    res.status(500).send({ message: 'Failed to fetch users' });
-  }
-});
-
-// ইউজারের স্ট্যাটাস বা রোল আপডেট করা
-app.patch('/users/update/:id', verifyToken, async (req, res) => {
-  try {
-    const id = req.params.id;
-    const updateData = req.body; // এতে থাকবে { status: 'blocked' } অথবা { role: 'admin' }
-    const result = await User.updateOne({ _id: id }, { $set: updateData });
-    res.send(result);
-  } catch (error) {
-    res.status(500).send({ message: 'Update failed' });
-  }
-});
-
-// --- নতুন মিডলওয়্যার: Admin চেক করার জন্য ---
 const verifyAdmin = async (req, res, next) => {
-  const email = req.user.email;
-  const user = await User.findOne({ email });
-  if (user?.role !== 'admin') {
-    return res.status(403).send({ message: 'Forbidden access! Admins only.' });
-  }
-  next();
-};
+  try {
+    const email = req.user?.email;
+    console.log('Admin verification for:', email);
 
+    const user = await User.findOne({ email: email });
+
+    if (!user) {
+      return res.status(403).send({ message: 'User not found in database' });
+    }
+
+    if (user.role !== 'admin') {
+      console.log(`Access denied for: ${email}, Role: ${user.role}`);
+      return res.status(403).send({ message: 'Forbidden: Admins only' });
+    }
+
+    next();
+  } catch (error) {
+    res.status(500).send({ message: 'Internal Server Error' });
+  }
+};
 app.patch('/user-update/:email', async (req, res) => {
   try {
     const email = req.params.email;
@@ -328,9 +319,6 @@ app.patch('/user-update/:email', async (req, res) => {
   }
 });
 
-// --- আপডেট করা রুটসমূহ (verifyAdmin যোগ করা হয়েছে) ---
-
-// সব ইউজারদের নিয়ে আসা (শুধুমাত্র অ্যাডমিনের জন্য)
 app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const result = await User.find().sort({ createdAt: -1 });
@@ -340,7 +328,6 @@ app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
-// ইউজারের স্ট্যাটাস বা রোল আপডেট করা (শুধুমাত্র অ্যাডমিনের জন্য)
 app.patch('/users/update/:id', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const id = req.params.id;
@@ -352,12 +339,11 @@ app.patch('/users/update/:id', verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
-// অ্যাডমিন স্ট্যাটাস ডাটা (verifyAdmin যোগ করা নিরাপদ)
 app.get('/admin-stats', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const totalDonors = await User.countDocuments({ role: 'donor' });
     const totalRequests = await DonationRequest.countDocuments();
-    const totalFunding = 52490; // আপাতত স্ট্যাটিক
+    const totalFunding = 52490;
 
     res.send({
       totalDonors,
@@ -375,7 +361,7 @@ app.post('/create-payment-intent', async (req, res) => {
     if (!price || price <= 0)
       return res.status(400).send({ message: 'Invalid price' });
 
-    const amount = parseInt(price * 100); // সেন্টে কনভার্ট
+    const amount = parseInt(price * 100);
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amount,
@@ -390,7 +376,6 @@ app.post('/create-payment-intent', async (req, res) => {
   }
 });
 
-// পেমেন্ট ডাটা সেভ
 app.post('/payments', async (req, res) => {
   try {
     const paymentData = req.body;
@@ -402,7 +387,6 @@ app.post('/payments', async (req, res) => {
   }
 });
 
-// সব পেমেন্ট হিস্ট্রি দেখা
 app.get('/payments', async (req, res) => {
   try {
     const result = await Payment.find().sort({ date: -1 });
@@ -412,18 +396,12 @@ app.get('/payments', async (req, res) => {
   }
 });
 
-// --- Search Donors API ---
-// আপনার ব্যাকেন্ডে (server index.js) এটি যোগ করুন
 app.get('/search-requests', async (req, res) => {
   try {
     const { bloodGroup, division, district } = req.query;
-
-    // ব্যাকেন্ডে প্রিন্ট করে দেখুন কি আসছে
     console.log('Search parameters received:', req.query);
 
     let query = {};
-
-    // যদি আপনি চান শুধু পেন্ডিং রিকোয়েস্ট দেখাবেন
     query.status = { $regex: /^pending$/i };
 
     if (bloodGroup) {
@@ -431,14 +409,12 @@ app.get('/search-requests', async (req, res) => {
     }
 
     if (division) {
-      // এটি 'dhaka' বা 'Dhaka' যাই হোক না কেন খুঁজে বের করবে
       query.division = { $regex: new RegExp(division, 'i') };
     }
 
     if (district) {
       query.district = { $regex: new RegExp(district, 'i') };
     }
-
     console.log('Final Mongo Query:', query);
 
     const result = await DonationRequest.find(query).sort({ createdAt: -1 });
@@ -451,7 +427,6 @@ app.get('/search-requests', async (req, res) => {
   }
 });
 
-// পাবলিক পেজের জন্য শুধুমাত্র পেন্ডিং রিকোয়েস্টগুলো আনা
 app.get('/donation-requests-pending', async (req, res) => {
   try {
     const result = await DonationRequest.find({ status: 'pending' }).sort({
@@ -463,11 +438,9 @@ app.get('/donation-requests-pending', async (req, res) => {
   }
 });
 
-// backend/index.js (উদাহরণ)
-
 app.post('/blogs', async (req, res) => {
   try {
-    const newBlog = new Blog(req.body); // আপনি উপরে 'Blog' মডেল তৈরি করেছেন, সেটি ব্যবহার হচ্ছে
+    const newBlog = new Blog(req.body);
     const result = await newBlog.save();
     res.send({ insertedId: result._id, message: 'Published Successfully' });
   } catch (error) {
@@ -476,10 +449,6 @@ app.post('/blogs', async (req, res) => {
   }
 });
 
-// ৩. ব্লগ ডাটা রিড করার API (UI তে দেখানোর জন্য)
-// --- ব্লগ সম্পর্কিত রুটস ---
-
-// ১. নতুন ব্লগ পোস্ট করা (অ্যাডমিনের জন্য)
 app.post('/blogs', async (req, res) => {
   try {
     const blogData = req.body;
@@ -502,7 +471,6 @@ app.get('/blogs', async (req, res) => {
   }
 });
 
-// ৩. ব্লগ ডিলিট করা
 app.delete('/blogs/:id', async (req, res) => {
   try {
     const id = req.params.id;
@@ -514,6 +482,22 @@ app.delete('/blogs/:id', async (req, res) => {
     }
   } catch (error) {
     res.status(500).send({ message: 'Delete failed' });
+  }
+});
+
+app.get('/blogs/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const result = await Blog.findById(id);
+    if (result) {
+      res.send(result);
+    } else {
+      res.status(404).send({ message: 'Blog not found' });
+    }
+  } catch (error) {
+    res
+      .status(500)
+      .send({ message: 'Error fetching blog details', error: error.message });
   }
 });
 
@@ -529,7 +513,6 @@ app.patch('/blogs/:id', async (req, res) => {
     );
 
     if (result) {
-      // modifiedCount ১ পাঠানো হচ্ছে যাতে ফ্রন্টএন্ডের Swal success পায়
       res.send({
         modifiedCount: 1,
         matchedCount: 1,
@@ -543,7 +526,6 @@ app.patch('/blogs/:id', async (req, res) => {
   }
 });
 
-// পাবলিক ইউজারদের জন্য শুধু পাবলিশড ব্লগ
 app.get('/blogs-published', async (req, res) => {
   try {
     const result = await Blog.find({ status: 'published' }).sort({
@@ -555,13 +537,10 @@ app.get('/blogs-published', async (req, res) => {
   }
 });
 
-// ডোনেশন রিকোয়েস্ট কনফার্ম করার রুট
 app.patch('/donation-request/status/:id', async (req, res) => {
   try {
     const id = req.params.id;
     const { status, donorName, donorEmail } = req.body;
-
-    // ডাটা ঠিকমতো আসছে কি না ব্যাকএন্ড টার্মিনালে চেক করুন
     console.log('Received Data:', { status, donorName, donorEmail });
 
     const result = await DonationRequest.findByIdAndUpdate(
@@ -586,6 +565,5 @@ app.patch('/donation-request/status/:id', async (req, res) => {
   }
 });
 
-// --- ৫. সার্ভার স্টার্ট ---
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server flying on port ${PORT}`));
