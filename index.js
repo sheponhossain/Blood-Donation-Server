@@ -23,8 +23,6 @@ app.options('(.*)', cors());
 
 app.use(express.json());
 
-app.use(express.json());
-
 const uri = `mongodb+srv://sheponsu_db_user:${process.env.DB_PASS}@cluster0.gqdrlzl.mongodb.net/?appName=Cluster0`;
 
 mongoose
@@ -278,11 +276,10 @@ app.patch('/donation-request/:id', async (req, res) => {
   }
 });
 
-app.get('/admin-stats', async (req, res) => {
+app.get('/admin-stats', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const totalDonors = await User.countDocuments({ role: 'donor' });
     const totalRequests = await DonationRequest.countDocuments();
-
     const totalFunding = 52490;
 
     res.send({
@@ -349,22 +346,6 @@ app.patch('/users/update/:id', verifyToken, verifyAdmin, async (req, res) => {
     res.send(result);
   } catch (error) {
     res.status(500).send({ message: 'Update failed' });
-  }
-});
-
-app.get('/admin-stats', verifyToken, verifyAdmin, async (req, res) => {
-  try {
-    const totalDonors = await User.countDocuments({ role: 'donor' });
-    const totalRequests = await DonationRequest.countDocuments();
-    const totalFunding = 52490;
-
-    res.send({
-      totalDonors,
-      totalRequests,
-      totalFunding,
-    });
-  } catch (error) {
-    res.status(500).send({ message: 'Error fetching stats' });
   }
 });
 
@@ -465,19 +446,6 @@ app.post('/blogs', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).send({ message: 'Failed to publish blog' });
-  }
-});
-
-app.post('/blogs', async (req, res) => {
-  try {
-    const blogData = req.body;
-    if (!blogData.status) blogData.status = 'draft';
-
-    const newBlog = new Blog(blogData);
-    const result = await newBlog.save();
-    res.send({ insertedId: result._id, message: 'Draft Saved Successfully' });
-  } catch (error) {
-    res.status(500).send({ message: 'Failed to create blog' });
   }
 });
 
