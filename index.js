@@ -23,9 +23,11 @@ app.use(express.json());
 const uri = `mongodb+srv://sheponsu_db_user:${process.env.DB_PASS}@cluster0.gqdrlzl.mongodb.net/?appName=Cluster0`;
 
 mongoose
-  .connect(uri)
+  .connect(uri, {
+    serverSelectionTimeoutMS: 5000,
+  })
   .then(() => console.log('❤️ Blood Donation DB Connected Successfully!'))
-  .catch((err) => console.log('❌ DB Connection Error:', err));
+  .catch((err) => console.error('❌ DB Connection Error:', err.message));
 
 const User = mongoose.model(
   'User',
