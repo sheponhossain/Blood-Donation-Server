@@ -7,18 +7,21 @@ const bcrypt = require('bcryptjs');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
-app.options('*', cors());
 
 app.use(
   cors({
     origin: [
       'https://blood-donation-11.web.app',
       'https://blood-donation-11.firebaseapp.com',
+      'http://localhost:5173',
     ],
     credentials: true,
-    optionSuccessStatus: 200,
   })
 );
+
+app.options('(.*)', cors());
+
+app.use(express.json());
 
 app.use(express.json());
 
