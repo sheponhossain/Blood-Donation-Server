@@ -16,12 +16,14 @@ app.use(
       'http://localhost:5173',
     ],
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
 
 app.use(express.json());
 
-const uri = `mongodb+srv://sheponsu_db_user:${process.env.DB_PASS}@cluster0.gqdrlzl.mongodb.net/?appName=Cluster0`;
+const uri = `mongodb+srv://sheponsu_db_user:${process.env.DB_PASS}@cluster0.gqdrlzl.mongodb.net/bloodDonationDB?retryWrites=true&w=majority&appName=Cluster0`;
 
 mongoose
   .connect(uri, {
@@ -30,10 +32,10 @@ mongoose
   .then(() => console.log('❤️ Blood Donation DB Connected Successfully!'))
   .catch((err) => console.error('❌ DB Connection Error:', err.message));
 
-// --- Models ---
+// --- Models (Fixed for deployment issues) ---
 
 const User =
-  mongoose.model.user ||
+  mongoose.models.User || // Check if exists
   mongoose.model(
     'User',
     new mongoose.Schema(
@@ -53,7 +55,7 @@ const User =
   );
 
 const DonationRequest =
-  mongoose.models.DonationRequest ||
+  mongoose.models.DonationRequest || // Check if exists
   mongoose.model(
     'DonationRequest',
     new mongoose.Schema(
@@ -79,7 +81,7 @@ const DonationRequest =
   );
 
 const Payment =
-  mongoose.models.Payment ||
+  mongoose.models.Payment || // Check if exists
   mongoose.model(
     'Payment',
     new mongoose.Schema(
@@ -96,7 +98,7 @@ const Payment =
   );
 
 const Blog =
-  mongoose.models.Blog ||
+  mongoose.models.Blog || // Check if exists
   mongoose.model(
     'Blog',
     new mongoose.Schema(
