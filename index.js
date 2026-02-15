@@ -30,6 +30,8 @@ mongoose
   .then(() => console.log('❤️ Blood Donation DB Connected Successfully!'))
   .catch((err) => console.error('❌ DB Connection Error:', err.message));
 
+// --- Models ---
+
 const User = mongoose.model(
   'User',
   new mongoose.Schema(
@@ -72,9 +74,6 @@ const DonationRequest = mongoose.model(
   )
 );
 
-console.log('Checking DB Pass:', process.env.DB_PASS);
-
-// payment
 const Payment = mongoose.model(
   'Payment',
   new mongoose.Schema(
@@ -105,6 +104,8 @@ const Blog = mongoose.model(
   )
 );
 
+// --- Middleware (Sorted to the top to avoid ReferenceError) ---
+
 const verifyToken = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) {
@@ -120,6 +121,36 @@ const verifyToken = (req, res, next) => {
     next();
   });
 };
+
+const verifyAdmin = async (req, res, next) => {
+  try {
+    const email = req.user?.email;
+    console.log('Admin verification for:', email);
+
+    const user = await User.findOne({ email: email });
+
+    if (!user) {
+      return res.status(403).send({ message: 'User not found in database' });
+    }
+
+    if (user.role !== 'admin') {
+      console.log(`Access denied for: ${email}, Role: ${user.role}`);
+      return res.status(403).send({ message: 'Forbidden: Admins only' });
+    }
+
+    next();
+  } catch (error) {
+    res.status(500).send({ message: 'Internal Server Error' });
+  }
+};
+
+// --- Routes ---
+
+console.log('Checking DB Pass:', process.env.DB_PASS);
+
+app.get('/', (req, res) => {
+  res.send('Blood Donation Server is Running!');
+});
 
 app.post('/jwt', async (req, res) => {
   try {
@@ -137,10 +168,6 @@ app.post('/jwt', async (req, res) => {
     console.error('JWT Error:', error);
     res.status(500).send({ message: 'Internal Server Error' });
   }
-});
-
-app.get('/', (req, res) => {
-  res.send('Blood Donation Server is Running!');
 });
 
 app.post('/register', async (req, res) => {
@@ -290,27 +317,6 @@ app.get('/admin-stats', verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
-const verifyAdmin = async (req, res, next) => {
-  try {
-    const email = req.user?.email;
-    console.log('Admin verification for:', email);
-
-    const user = await User.findOne({ email: email });
-
-    if (!user) {
-      return res.status(403).send({ message: 'User not found in database' });
-    }
-
-    if (user.role !== 'admin') {
-      console.log(`Access denied for: ${email}, Role: ${user.role}`);
-      return res.status(403).send({ message: 'Forbidden: Admins only' });
-    }
-
-    next();
-  } catch (error) {
-    res.status(500).send({ message: 'Internal Server Error' });
-  }
-};
 app.patch('/user-update/:email', async (req, res) => {
   try {
     const email = req.params.email;
@@ -551,4 +557,8 @@ app.patch('/donation-request/status/:id', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Server flying on port ${PORT}`));
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => console.log(`🚀 Server flying on port ${PORT}`));
+}
+
+module.exports = app;
