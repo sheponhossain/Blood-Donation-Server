@@ -16,8 +16,8 @@ app.use(
       'http://localhost:5173',
     ],
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    // methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    // allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
 
@@ -27,7 +27,7 @@ const uri = `mongodb+srv://sheponsu_db_user:${process.env.DB_PASS}@cluster0.gqdr
 
 mongoose
   .connect(uri, {
-    serverSelectionTimeoutMS: 5000,
+    serverSelectionTimeoutMS: 10000,
   })
   .then(() => console.log('❤️ Blood Donation DB Connected Successfully!'))
   .catch((err) => console.error('❌ DB Connection Error:', err.message));
@@ -110,7 +110,7 @@ const Blog =
         date: String,
         status: { type: String, default: 'draft' },
       },
-      { timestamps: true }
+      { timestamps: true, collection: 'blogs' }
     )
   );
 
@@ -566,9 +566,12 @@ app.patch('/donation-request/status/:id', async (req, res) => {
   }
 });
 
+// const PORT = process.env.PORT || 5000;
+// if (process.env.NODE_ENV !== 'production') {
+//   app.listen(PORT, () => console.log(`🚀 Server flying on port ${PORT}`));
+// }
+
 const PORT = process.env.PORT || 5000;
-if (process.env.NODE_ENV !== 'production') {
-  app.listen(PORT, () => console.log(`🚀 Server flying on port ${PORT}`));
-}
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 
 module.exports = app;

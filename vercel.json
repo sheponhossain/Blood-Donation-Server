@@ -1,3 +1,5 @@
+
+
 {
   "version": 2,
   "builds": [
@@ -6,11 +8,10 @@
       "use": "@vercel/node"
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/(.*)",
-      "dest": "index.js",
-      "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+      "source": "/(.*)",
+      "destination": "index.js"
     }
   ]
 }
